@@ -4,7 +4,7 @@ from keras.models import load_model
 # calculate kdp with autoencoder
 #----------------------------------
 def calc_kdp(phidp):
-    autoencoder = load_model('../phase_ml/kdp_model.h5')
+    autoencoder = load_model('kdp_model.h5')
     nrange = 512
 
     # make phidp positive
