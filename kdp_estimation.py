@@ -3,7 +3,7 @@ from keras.models import load_model
 
 # calculate kdp with autoencoder
 #----------------------------------
-def calc_kdp(phidp):
+def calc_kdp(phidp, dr):
     autoencoder = load_model('kdp_model.h5')
     nrange = 512
 
@@ -28,7 +28,7 @@ def calc_kdp(phidp):
     # calculate kdp for first range chunk
     output_test = autoencoder.predict(phidp[:,:nrange,:]/250.)
     kdp[:,:nrange] = 10.*output_test[:,:nrange,0]
-    delta[:,:nrange] = 10.*output_test[:,:nrange,1]
+    #delta[:,:nrange] = 10.*output_test[:,:nrange,1]
 
     # calculate kdp for each range chunk
     nrange_dat = phidp.shape[1]
@@ -42,6 +42,9 @@ def calc_kdp(phidp):
 
         output_test = autoencoder.predict(phidp[:,str_ri:end_ri,:]/250.)
         kdp[:,str_ri+flen:end_ri] = 10.*output_test[:,flen:nrange,0]
-        delta[:,str_ri+flen:end_ri] = 10.*output_test[:,flen:nrange,1]
+        #delta[:,str_ri+flen:end_ri] = 10.*output_test[:,flen:nrange,1]
+
+    # scale by range gate width
+    kdp = kdp/dr
 
     return kdp, delta, phidp[:,:,0]
