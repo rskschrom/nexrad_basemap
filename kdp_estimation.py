@@ -5,7 +5,7 @@ from keras.models import load_model
 #----------------------------------
 def calc_kdp(phidp, dr):
     #autoencoder = load_model('kdp_model.h5')
-    autoencoder = load_model('kdp_simple.h5', compile=False)
+    autoencoder = load_model('kdp_model.h5', compile=False)
     nrange = 512
 
     # extend phidp in range is less than nrange
