@@ -6,10 +6,11 @@ import scipy.interpolate as inp
 from scipy.stats import binned_statistic_2d
 import glob
 import datetime
+from datetime import timezone
 
 # function for creating color map
 def createCmap(mapname):
-    fil = open(mapname+'.rgb')
+    fil = open('/home/robert/research/nws/'+mapname+'.rgb')
     cdata = np.genfromtxt(fil,skip_header=2)
     cdata = cdata/256
     cmap = cm.ListedColormap(cdata, mapname)
@@ -26,7 +27,7 @@ def timeticks(x, pos):
 
 # read in qvp data from files
 site = 'KBGM'
-date_pre = '202001'
+date_pre = '202012'
 qvp_files = glob.glob(f'{date_pre}*{site}.txt')
 print(qvp_files)
 nqvp = len(qvp_files)
@@ -40,7 +41,9 @@ zcor = [None]*nqvp
 for i in range(nqvp):
     with open(qvp_files[i]) as f:
         first_line = f.readline()
-    times[i] = int(first_line.split(':')[1])
+    #times[i] = int(first_line.split(':')[1])
+    times[i] = datetime.datetime.fromtimestamp(int(first_line.split(':')[1]), tz=timezone.utc) 
+    print(times[i])
 
     data = np.genfromtxt(qvp_files[i], skip_header=2)
     zcor[i] = data[:,0]
@@ -66,44 +69,55 @@ for i in range(nqvp):
     t1d = np.concatenate((t1d, np.full((len(zcor[i])), times[i])))
 
 # mask missing data
+t1d_secs = np.array([dt.timestamp() for dt in t1d])
 zh1d = np.ma.masked_where(zh1d==-999., zh1d)
 zdr1d = np.ma.masked_where(zdr1d==-999., zdr1d)
 kdp1d = np.ma.masked_where(kdp1d==-999., kdp1d)
 rhv1d = np.ma.masked_where(rhv1d==-999., rhv1d)
 #sw_time = datetime.fromtimestamp(ts_utc)
 
-kdp1d = np.ma.masked_where(zc1d<1000., kdp1d)
+#kdp1d = np.ma.masked_where(zc1d<1000., kdp1d)
 
 #  create time-height grid
 delta_t_sec = 600.
-delta_z_m = 30.
+#delta_t_sec = 1000
+delta_z_m = 200.
 
-ntgrid = int((np.max(t1d)-np.min(t1d))/(delta_t_sec))+1
+ntgrid = int((np.max(t1d_secs)-np.min(t1d_secs))/(delta_t_sec))+1
 nzgrid = int(15000./delta_z_m+1.)
-tg1d = np.arange(ntgrid)*delta_t_sec+np.min(t1d)
+tg1d_secs = np.arange(ntgrid)*delta_t_sec+np.min(t1d_secs)
+tg1d = np.array([datetime.datetime.fromtimestamp(ts, tz=timezone.utc) for ts in tg1d_secs])
+
 zg1d = np.arange(nzgrid)*delta_z_m
 tgrid, zgrid = np.meshgrid(tg1d, zg1d, indexing='ij')
 
 # bin data
-zhgrid,_,_,_ = binned_statistic_2d(t1d[~zh1d.mask], zc1d[~zh1d.mask], zh1d[~zh1d.mask],
-                                   statistic='median', bins=(tg1d, zg1d))
-zdrgrid,_,_,_ = binned_statistic_2d(t1d[~zdr1d.mask], zc1d[~zdr1d.mask], zdr1d[~zdr1d.mask],
-                                   statistic='median', bins=(tg1d, zg1d))
-kdpgrid,_,_,_ = binned_statistic_2d(t1d[~kdp1d.mask], zc1d[~kdp1d.mask], kdp1d[~kdp1d.mask],
-                                   statistic='median', bins=(tg1d, zg1d))
-rhvgrid,_,_,_ = binned_statistic_2d(t1d[~rhv1d.mask], zc1d[~rhv1d.mask], rhv1d[~rhv1d.mask],
-                                   statistic='median', bins=(tg1d, zg1d))
+zhgrid,_,_,_ = binned_statistic_2d(t1d_secs[~zh1d.mask], zc1d[~zh1d.mask], zh1d[~zh1d.mask],
+                                   statistic='median', bins=(tg1d_secs, zg1d))
+zdrgrid,_,_,_ = binned_statistic_2d(t1d_secs[~zdr1d.mask], zc1d[~zdr1d.mask], zdr1d[~zdr1d.mask],
+                                   statistic='median', bins=(tg1d_secs, zg1d))
+kdpgrid,_,_,_ = binned_statistic_2d(t1d_secs[~kdp1d.mask], zc1d[~kdp1d.mask], kdp1d[~kdp1d.mask],
+                                   statistic='median', bins=(tg1d_secs, zg1d))
+rhvgrid,_,_,_ = binned_statistic_2d(t1d_secs[~rhv1d.mask], zc1d[~rhv1d.mask], rhv1d[~rhv1d.mask],
+                                   statistic='median', bins=(tg1d_secs, zg1d))
 
-zdrgrid = np.ma.masked_where(zhgrid<0., zdrgrid)
-kdpgrid = np.ma.masked_where(zhgrid<0., kdpgrid)
-rhvgrid = np.ma.masked_where(zhgrid<0., rhvgrid)
-zhgrid = np.ma.masked_where(zhgrid<0., zhgrid)
+# save data as test
+np.save('tgrid.npy', tgrid)
+np.save('zgrid.npy', zgrid/1.e3) 
+np.save('zhgrid.npy', zhgrid)
+
+zdrgrid = np.ma.masked_where(zhgrid<-10., zdrgrid)
+kdpgrid = np.ma.masked_where(zhgrid<-10., kdpgrid)
+rhvgrid = np.ma.masked_where(zhgrid<-10., rhvgrid)
+zhgrid = np.ma.masked_where(zhgrid<-10., zhgrid)
 
 # plot
-fmtx = mpl.ticker.FuncFormatter(timeticks)
+locx = mpl.dates.AutoDateLocator()
+#fmtx = mpl.ticker.FuncFormatter(timeticks)
+fmtx = mpl.dates.DateFormatter('%H:%M')
 fmty = mpl.ticker.StrMethodFormatter("{x:.0f}")
 fig = plt.figure(figsize=(12,16))
-zmax = 10.
+zmax = 12.
 
 # color map stuff
 zh_map = createCmap('zh2_map')
@@ -113,10 +127,12 @@ kdp_map = createCmap('kdp_map')
 
 # zh
 ax = fig.add_subplot(4,1,1)
-plt.pcolormesh(tgrid, zgrid/1.e3, zhgrid, cmap=zh_map, vmin=0., vmax=60.)
+plt.pcolormesh(tgrid, zgrid/1.e3, zhgrid, cmap=zh_map, vmin=-10., vmax=60.)
+#plt.pcolormesh(tgrid, zgrid/1.e3, zhgrid, cmap='magma_r', vmin=-20., vmax=20.)
 cb = plt.colorbar()
 cb.set_label('(dBZ)')
 ax.set_ylim([0., zmax])
+ax.xaxis.set_major_locator(locx)
 ax.xaxis.set_major_formatter(fmtx)
 ax.yaxis.set_major_formatter(fmty)
 ax.set_ylabel('Height (km)', fontsize=16)
@@ -128,6 +144,7 @@ plt.pcolormesh(tgrid, zgrid/1.e3, zdrgrid, cmap=zdr_map, vmin=-2.4, vmax=6.9)
 cb = plt.colorbar()
 cb.set_label('(dB)')
 ax.set_ylim([0., zmax])
+ax.xaxis.set_major_locator(locx)
 ax.xaxis.set_major_formatter(fmtx)
 ax.yaxis.set_major_formatter(fmty)
 ax.set_ylabel('Height (km)', fontsize=16)
@@ -135,10 +152,11 @@ ax.set_title('$Z_{DR}$', fontsize=24, x=0., y=1.02, ha='left')
 
 # kdp
 ax = fig.add_subplot(4,1,3)
-plt.pcolormesh(tgrid, zgrid/1.e3, kdpgrid, cmap=kdp_map, vmin=-0.5, vmax=2.)
+plt.pcolormesh(tgrid, zgrid/1.e3, kdpgrid, cmap=kdp_map, vmin=-0.3, vmax=1.2)
 cb = plt.colorbar()
 cb.set_label('(deg/km)')
 ax.set_ylim([0., zmax])
+ax.xaxis.set_major_locator(locx)
 ax.xaxis.set_major_formatter(fmtx)
 ax.yaxis.set_major_formatter(fmty)
 ax.set_ylabel('Height (km)', fontsize=16)
@@ -150,6 +168,7 @@ plt.pcolormesh(tgrid, zgrid/1.e3, rhvgrid, cmap=rhv_map, vmin=0.81, vmax=1.03)
 cb = plt.colorbar()
 cb.set_label('')
 ax.set_ylim([0., zmax])
+ax.xaxis.set_major_locator(locx)
 ax.xaxis.set_major_formatter(fmtx)
 ax.yaxis.set_major_formatter(fmty)
 ax.set_xlabel('Time (UTC)', fontsize=16)
@@ -160,9 +179,9 @@ ax.set_title('$\\rho_{HV}$', fontsize=24, x=0., y=1.02, ha='left')
 plt.subplots_adjust(hspace=0.4)
 
 # get date or date range
-times = np.array(times)
-dtmin = datetime.datetime.utcfromtimestamp(np.min(times))
-dtmax = datetime.datetime.utcfromtimestamp(np.max(times))
+#times = np.array(times)
+dtmin = datetime.datetime.fromtimestamp(np.min(t1d_secs), tz=timezone.utc)
+dtmax = datetime.datetime.fromtimestamp(np.max(t1d_secs), tz=timezone.utc)
 year_min = dtmin.year
 year_max = dtmax.year
 month_min = dtmin.strftime("%B")
@@ -180,4 +199,4 @@ if day_min!=day_max:
             date_form = f'{day_min} {month_min} {year_min}\N{MINUS SIGN}{day_max} {month_max} {year_max}'
 
 plt.suptitle(f'{date_form} - {site} QVP '+'(10$^{\circ}$)', fontsize=26, y=0.94)
-plt.savefig(f'time_height_{site}.png', bbox_inches='tight')
+plt.savefig(f'time_height_{site.lower()}.png', bbox_inches='tight')

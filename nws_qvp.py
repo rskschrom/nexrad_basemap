@@ -87,7 +87,7 @@ def single_qvp(site, fpath, sw_ang=10.):
         #-----------------------------------------------
         print('Calculating KDP...')
         phidp = dealiasPhiDP(phidp)
-        kdp_alt, delta, phidp_alt = calc_kdp(phidp)
+        kdp_alt, delta, phidp_alt = calc_kdp(phidp, 0.25)
         kdp_alt = np.ma.masked_where(ref<-5., kdp_alt)
 
         # calculate beam height 
