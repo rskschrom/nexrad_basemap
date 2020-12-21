@@ -9,7 +9,7 @@ import datetime
 
 # function for creating color map
 def createCmap(mapname):
-    fil = open('/home/robert/research/nws/'+mapname+'.rgb')
+    fil = open(mapname+'.rgb')
     cdata = np.genfromtxt(fil,skip_header=2)
     cdata = cdata/256
     cmap = cm.ListedColormap(cdata, mapname)
