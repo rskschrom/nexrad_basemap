@@ -27,8 +27,10 @@ def timeticks(x, pos):
 
 # read in qvp data from files
 site = 'KBGM'
-date_pre = '202012'
-qvp_files = glob.glob(f'{date_pre}*{site}.txt')
+#date_pre = '202012'
+#qvp_files = glob.glob(f'{date_pre}*{site}.txt')
+qvp_files = glob.glob(f'*{site}.txt')
+
 print(qvp_files)
 nqvp = len(qvp_files)
 times = [None]*nqvp
